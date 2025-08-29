@@ -1,3 +1,4 @@
+import Papa from 'papaparse';
 import { StripeTransaction, ProcessedMetrics, Customer, CohortData, NetNewARRData, LogoACVData } from '@/types/analytics';
 
 export class StripeDataProcessor {
@@ -49,7 +50,6 @@ export class StripeDataProcessor {
 
   private parseCSV(text: string): StripeTransaction[] {
     // Use PapaParse for robust CSV parsing
-    const Papa = (window as any).Papa || require('papaparse');
     const result = Papa.parse(text, {
       header: true,
       skipEmptyLines: 'greedy',
