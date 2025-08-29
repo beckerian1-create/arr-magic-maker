@@ -87,16 +87,6 @@ export class StripeDataProcessor {
       'type': 'type'
     };
 
-    function dollars(n: any): number {
-      // deprecated, keeping for compatibility
-      const x = Number(n);
-      if (!isFinite(x)) return 0;
-      return Math.abs(x) > 1000 ? x / 100 : x;
-      const x = Number(n);
-      if (!isFinite(x)) return 0;
-      return Math.abs(x) > 1000 ? x / 100 : x;
-    }
-
     const rows = (result.data as any[]).filter(Boolean);
     const out: StripeTransaction[] = [];
 
@@ -112,7 +102,7 @@ export class StripeDataProcessor {
         id: String(row.id || row.invoice_id || ''),
         customer_id: String(row.customer_id || row.customer_email || ''),
         customer_email: String(row.customer_email || ''),
-        amount: this.cleanAmount(row.amount ?? (row.net_cents ?? row.amount_cents) / 100),
+        amount: ( (()=>{ const cents = (row.net_cents ?? row.amount_cents); if(cents!==undefined && cents!==null && String(cents).trim()!==''){ const n = Number(String(cents).replace(/[^0-9.\-]/g,'')); return isFinite(n)? n/100 : 0;} return this.cleanAmount(row.amount); })() ) / 100),
         currency: (row.currency || 'usd').toString().toLowerCase(),
         status: String(row.status || ''),
         created: String(row.created || ''),
