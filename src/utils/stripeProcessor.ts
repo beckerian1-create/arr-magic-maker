@@ -1,6 +1,20 @@
 import { StripeTransaction, ProcessedMetrics, Customer, CohortData, NetNewARRData, LogoACVData } from '@/types/analytics';
 
 export class StripeDataProcessor {
+
+  private cleanAmount(n: any): number {
+    if (n === null || n === undefined) return 0;
+    // handle strings like "$1,234.56" or "1,234" or empty
+    const s = String(n).trim();
+    if (!s) return 0;
+    const cleaned = s.replace(/[^0-9\.-]/g, "");
+    if (!cleaned) return 0;
+    const x = Number(cleaned);
+    if (!isFinite(x)) return 0;
+    // if looks like cents, convert
+    return Math.abs(x) > 100000 ? x / 100 : x;
+  }
+
   private transactions: StripeTransaction[] = [];
   private customers: Map<string, Customer> = new Map();
 
@@ -72,6 +86,10 @@ export class StripeDataProcessor {
     };
 
     function dollars(n: any): number {
+      // deprecated, keeping for compatibility
+      const x = Number(n);
+      if (!isFinite(x)) return 0;
+      return Math.abs(x) > 1000 ? x / 100 : x;
       const x = Number(n);
       if (!isFinite(x)) return 0;
       return Math.abs(x) > 1000 ? x / 100 : x;
@@ -92,7 +110,7 @@ export class StripeDataProcessor {
         id: String(row.id || row.invoice_id || ''),
         customer_id: String(row.customer_id || ''),
         customer_email: String(row.customer_email || ''),
-        amount: dollars(row.amount),
+        amount: this.cleanAmount(row.amount),
         currency: (row.currency || 'usd').toString().toLowerCase(),
         status: String(row.status || ''),
         created: String(row.created || ''),
