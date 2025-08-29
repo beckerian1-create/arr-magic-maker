@@ -3,6 +3,8 @@ import { FileUpload } from './FileUpload';
 import { MetricsCard } from './MetricsCard';
 import { ARRBreakdown } from './ARRBreakdown';
 import { CohortAnalysis } from './CohortAnalysis';
+import { NetNewARRChart } from './NetNewARRChart';
+import { LogosVsACVChart } from './LogosVsACVChart';
 import { StripeDataProcessor } from '@/utils/stripeProcessor';
 import { ProcessedMetrics } from '@/types/analytics';
 import { TrendingUp, Users, DollarSign, Repeat } from 'lucide-react';
@@ -162,6 +164,15 @@ export const Dashboard = () => {
 
         {/* ARR Breakdown */}
         <ARRBreakdown data={metrics.arr} />
+
+        {/* Charts Section */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+          {/* Net New ARR Chart */}
+          <NetNewARRChart data={metrics.netNewARRChart} />
+          
+          {/* Logos vs ACV Chart */}
+          <LogosVsACVChart data={metrics.logosVsACV} />
+        </div>
 
         {/* Cohort Analysis */}
         <CohortAnalysis data={metrics.cohorts} />

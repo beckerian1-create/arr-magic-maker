@@ -26,6 +26,25 @@ export interface ProcessedMetrics {
   nrr: number; // Net Revenue Retention
   grr: number; // Gross Revenue Retention
   cohorts: CohortData[];
+  netNewARRChart: NetNewARRData[];
+  logosVsACV: LogoACVData[];
+}
+
+export interface NetNewARRData {
+  month: string;
+  netNewARR: number;
+  newARR: number;
+  churnARR: number;
+  upsellARR: number;
+  downsellARR: number;
+  comebackARR: number;
+}
+
+export interface LogoACVData {
+  month: string;
+  newLogos: number;
+  averageACV: number;
+  totalNewARR: number;
 }
 
 export interface CohortData {

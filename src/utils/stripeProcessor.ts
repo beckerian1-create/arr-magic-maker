@@ -1,4 +1,4 @@
-import { StripeTransaction, ProcessedMetrics, Customer, CohortData } from '@/types/analytics';
+import { StripeTransaction, ProcessedMetrics, Customer, CohortData, NetNewARRData, LogoACVData } from '@/types/analytics';
 
 export class StripeDataProcessor {
   private transactions: StripeTransaction[] = [];
@@ -13,7 +13,9 @@ export class StripeDataProcessor {
       arr: this.calculateARR(),
       nrr: this.calculateNRR(),
       grr: this.calculateGRR(),
-      cohorts: this.calculateCohorts()
+      cohorts: this.calculateCohorts(),
+      netNewARRChart: this.calculateNetNewARRChart(),
+      logosVsACV: this.calculateLogosVsACV()
     };
   }
 
@@ -277,5 +279,143 @@ export class StripeDataProcessor {
     });
     
     return retainedCount;
+  }
+
+  private calculateNetNewARRChart(): NetNewARRData[] {
+    const chartData: NetNewARRData[] = [];
+    const currentDate = new Date();
+    
+    // Generate data for the last 12 months
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      
+      const monthString = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      
+      // Get transactions for this month
+      const monthTransactions = this.transactions.filter(t => {
+        const transactionDate = new Date(t.created);
+        return transactionDate.getFullYear() === year && 
+               transactionDate.getMonth() === month &&
+               t.type === 'subscription';
+      });
+      
+      // Calculate ARR components for this month
+      const newCustomersThisMonth = this.getNewCustomersForMonth(year, month);
+      const newARR = Array.from(newCustomersThisMonth.values()).reduce((sum, customer) => {
+        return sum + this.getCustomerRevenueForMonth(customer.id, year, month);
+      }, 0);
+      
+      // Calculate other ARR components (simplified for monthly view)
+      const existingCustomers = this.getExistingCustomersForMonth(year, month);
+      let upsellARR = 0;
+      let downsellARR = 0;
+      let churnARR = 0;
+      let comebackARR = 0;
+      
+      existingCustomers.forEach(customer => {
+        const currentRevenue = this.getCustomerRevenueForMonth(customer.id, year, month);
+        const previousRevenue = this.getCustomerRevenueForMonth(customer.id, year, month - 1);
+        
+        if (currentRevenue === 0 && previousRevenue > 0) {
+          churnARR += previousRevenue;
+        } else if (currentRevenue > 0 && previousRevenue === 0) {
+          comebackARR += currentRevenue;
+        } else if (currentRevenue > previousRevenue) {
+          upsellARR += (currentRevenue - previousRevenue);
+        } else if (currentRevenue < previousRevenue) {
+          downsellARR += (previousRevenue - currentRevenue);
+        }
+      });
+      
+      chartData.push({
+        month: monthString,
+        netNewARR: newARR + upsellARR + comebackARR - churnARR - downsellARR,
+        newARR,
+        churnARR,
+        upsellARR,
+        downsellARR,
+        comebackARR
+      });
+    }
+    
+    return chartData;
+  }
+  
+  private calculateLogosVsACV(): LogoACVData[] {
+    const chartData: LogoACVData[] = [];
+    const currentDate = new Date();
+    
+    // Generate data for the last 12 months
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      
+      const monthString = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      
+      // Get new customers for this month
+      const newCustomersThisMonth = this.getNewCustomersForMonth(year, month);
+      const newLogosCount = newCustomersThisMonth.size;
+      
+      if (newLogosCount > 0) {
+        // Calculate total new ARR and average ACV
+        const totalNewARR = Array.from(newCustomersThisMonth.values()).reduce((sum, customer) => {
+          return sum + this.getCustomerRevenueForMonth(customer.id, year, month);
+        }, 0);
+        
+        const averageACV = totalNewARR / newLogosCount;
+        
+        chartData.push({
+          month: monthString,
+          newLogos: newLogosCount,
+          averageACV,
+          totalNewARR
+        });
+      } else {
+        chartData.push({
+          month: monthString,
+          newLogos: 0,
+          averageACV: 0,
+          totalNewARR: 0
+        });
+      }
+    }
+    
+    return chartData;
+  }
+  
+  // Additional helper methods for monthly calculations
+  private getNewCustomersForMonth(year: number, month: number): Map<string, Customer> {
+    const newCustomers = new Map<string, Customer>();
+    
+    this.customers.forEach(customer => {
+      const firstDate = new Date(customer.firstTransactionDate);
+      if (firstDate.getFullYear() === year && firstDate.getMonth() === month) {
+        newCustomers.set(customer.id, customer);
+      }
+    });
+    
+    return newCustomers;
+  }
+  
+  private getExistingCustomersForMonth(year: number, month: number): Customer[] {
+    const targetDate = new Date(year, month, 1);
+    return Array.from(this.customers.values()).filter(customer => 
+      new Date(customer.firstTransactionDate) < targetDate
+    );
+  }
+  
+  private getCustomerRevenueForMonth(customerId: string, year: number, month: number): number {
+    return this.transactions
+      .filter(t => {
+        const transactionDate = new Date(t.created);
+        return t.customer_id === customerId && 
+               transactionDate.getFullYear() === year && 
+               transactionDate.getMonth() === month &&
+               t.type === 'subscription';
+      })
+      .reduce((sum, t) => sum + t.amount, 0);
   }
 }
