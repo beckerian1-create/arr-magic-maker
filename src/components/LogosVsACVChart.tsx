@@ -48,9 +48,29 @@ export const LogosVsACVChart = ({ data }: LogosVsACVChartProps) => {
     return null;
   };
 
+  // Handle empty data
+  if (!data || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>New Logos vs Average Contract Value</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Upload data to see customer acquisition patterns
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="h-80 flex items-center justify-center text-muted-foreground">
+            No data available
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   // Color scale based on total new ARR
   const maxARR = Math.max(...data.map(d => d.totalNewARR));
   const getColor = (arr: number) => {
+    if (maxARR === 0) return 'hsl(var(--muted-foreground))';
     const intensity = arr / maxARR;
     if (intensity > 0.8) return 'hsl(var(--success))';
     if (intensity > 0.6) return 'hsl(var(--chart-2))';

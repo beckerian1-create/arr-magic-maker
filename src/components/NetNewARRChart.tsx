@@ -48,8 +48,27 @@ export const NetNewARRChart = ({ data }: NetNewARRChartProps) => {
     return null;
   };
 
+  // Handle empty data
+  if (!data || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Net New ARR Over Time</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Upload data to see ARR movement over time
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="h-80 flex items-center justify-center text-muted-foreground">
+            No data available
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const maxValue = Math.max(...data.map(d => Math.max(d.newARR, Math.abs(d.churnARR), d.upsellARR)));
-  const yAxisDomain = [-maxValue * 0.3, maxValue * 1.1];
+  const yAxisDomain = maxValue > 0 ? [-maxValue * 0.3, maxValue * 1.1] : [0, 100];
 
   return (
     <Card>
