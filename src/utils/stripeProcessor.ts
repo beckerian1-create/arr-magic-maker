@@ -69,6 +69,8 @@ export class StripeDataProcessor {
       'amount captured': 'amount',
       'net': 'amount',
       'gross': 'amount',
+      'amount_cents': 'amount_cents',
+      'net_cents': 'net_cents',
       'currency': 'currency',
       'status': 'status',
       'created': 'created',
@@ -108,9 +110,9 @@ export class StripeDataProcessor {
       // Build transaction with graceful fallbacks
       const txn: StripeTransaction = {
         id: String(row.id || row.invoice_id || ''),
-        customer_id: String(row.customer_id || ''),
+        customer_id: String(row.customer_id || row.customer_email || ''),
         customer_email: String(row.customer_email || ''),
-        amount: this.cleanAmount(row.amount),
+        amount: this.cleanAmount(row.amount ?? (row.net_cents ?? row.amount_cents) / 100),
         currency: (row.currency || 'usd').toString().toLowerCase(),
         status: String(row.status || ''),
         created: String(row.created || ''),

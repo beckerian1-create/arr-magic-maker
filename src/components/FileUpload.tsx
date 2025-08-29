@@ -18,7 +18,10 @@ const CHARGES_COLUMN_MAP: Record<string, string> = {
   amount: "amount_usd",
   "amount captured": "amount_usd",
   amount_captured: "amount_usd",
+  amount_cents: "amount_cents",
+  net_cents: "net_cents",
   customer: "customer_id",
+  customer_email: "customer_email"
 };
 
 function remap(row: Record<string, any>, map: Record<string, string>) {
@@ -31,8 +34,16 @@ function remap(row: Record<string, any>, map: Record<string, string>) {
 }
 
 function toDollars(n: any) {
-  const num = Number(n);
-  return !isFinite(num) ? null : Math.abs(num) > 1000 ? num / 100 : num;
+  if (n === null || n === undefined) return 0;
+  const s = String(n).trim();
+  if (!s) return 0;
+  // remove $ , spaces and other symbols; keep digits, dot, minus
+  const cleaned = s.replace(/[^0-9.\-]/g, "");
+  if (!cleaned) return 0;
+  const num = Number(cleaned);
+  if (!isFinite(num)) return 0;
+  // if it's very large and has no decimal, treat as cents
+  return Math.abs(num) > 100000 ? num / 100 : num;
 }
 
 // --- Validation Schemas ---
@@ -49,6 +60,7 @@ const ChargeSchema = z.object({
   created_at: z.coerce.date(),
   amount_usd: z.preprocess((v) => toDollars(v), z.number()),
   customer_id: z.string().optional(),
+  customer_email: z.string().optional(),
 });
 
 interface FileUploadProps {
@@ -86,9 +98,20 @@ export const FileUpload = ({
             ["plan.amount", "plan interval", "plan.interval"].includes(h)
           );
 
-          const mapped = rows.map((r) =>
+          const mappedRaw = rows.map((r) =>
             remap(r, isSubs ? SUBS_COLUMN_MAP : CHARGES_COLUMN_MAP)
           );
+          const mapped = mappedRaw.map((r) => {
+            if (!isSubs) {
+              // Prefer net_cents over amount_cents if present
+              const cents = r.net_cents ?? r.amount_cents;
+              if (cents !== undefined && (r.amount_usd === undefined || r.amount_usd === null || r.amount_usd === "")) {
+                const n = Number(String(cents).replace(/[^0-9.-]/g, ""));
+                r.amount_usd = isFinite(n) ? n / 100 : 0;
+              }
+            }
+            return r;
+          });
 
           const schema = isSubs ? SubSchema : ChargeSchema;
           const parsed: any[] = [];
