@@ -28,94 +28,68 @@ export class StripeDataProcessor {
     });
   }
 
-  
-  private normalizeHeader(h: string): string {
-    return h.replace(/\uFEFF/g, '').trim().toLowerCase().replace(/[()]/g, '').replace(/\s+/g, ' ');
-  }
-
   private parseCSV(text: string): StripeTransaction[] {
-    // Use PapaParse for robust CSV parsing
-    const Papa = (window as any).Papa || require('papaparse');
-    const result = Papa.parse(text, {
-      header: true,
-      skipEmptyLines: 'greedy',
-      transformHeader: (h: string) => this.normalizeHeader(h),
-    });
+    const lines = text.split('\n');
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    
+    return lines.slice(1).map(line => {
+      const values = line.split(',');
+      const transaction: any = {};
+      
+      headers.forEach((header, index) => {
+        const value = values[index]?.trim() || '';
+        
+        switch (header) {
+          case 'id':
+          case 'charge id':
+            transaction.id = value;
+            break;
+          case 'customer id':
+          case 'customer':
+            transaction.customer_id = value;
+            break;
+          case 'customer email':
+          case 'email':
+            transaction.customer_email = value;
+            break;
+          case 'amount':
+          case 'net':
+          case 'gross':
+            transaction.amount = parseFloat(value) || 0;
+            break;
+          case 'currency':
+            transaction.currency = value || 'usd';
+            break;
+          case 'status':
+            transaction.status = value;
+            break;
+          case 'created':
+          case 'date':
+            transaction.created = value;
+            break;
+          case 'subscription id':
+          case 'subscription':
+            transaction.subscription_id = value;
+            break;
+          case 'description':
+          case 'product':
+            transaction.product_name = value;
+            break;
+        }
+      });
 
-    const map: Record<string, string> = {
-      'id': 'id',
-      'charge id': 'id',
-      'invoice id': 'invoice_id',
-      'invoice': 'invoice_id',
-      'customer id': 'customer_id',
-      'customer': 'customer_id',
-      'customer email': 'customer_email',
-      'email': 'customer_email',
-      'amount': 'amount',
-      'amount captured': 'amount',
-      'net': 'amount',
-      'gross': 'amount',
-      'currency': 'currency',
-      'status': 'status',
-      'created': 'created',
-      'created utc': 'created',
-      'created (utc)': 'created',
-      'date': 'created',
-      'subscription id': 'subscription_id',
-      'subscription': 'subscription_id',
-      'description': 'product_name',
-      'product': 'product_name',
-      'plan name': 'plan_name',
-      'plan': 'plan_name',
-      'interval': 'interval',
-      'type': 'type'
-    };
-
-    function dollars(n: any): number {
-      const x = Number(n);
-      if (!isFinite(x)) return 0;
-      return Math.abs(x) > 1000 ? x / 100 : x;
-    }
-
-    const rows = (result.data as any[]).filter(Boolean);
-    const out: StripeTransaction[] = [];
-
-    for (const raw of rows) {
-      const row: any = {};
-      for (const [k, v] of Object.entries(raw)) {
-        const key = map[this.normalizeHeader(String(k))] || this.normalizeHeader(String(k));
-        row[key] = typeof v === 'string' ? v.trim() : v;
+      // Determine transaction type
+      if (transaction.subscription_id) {
+        transaction.type = 'subscription';
+      } else if (transaction.amount < 0) {
+        transaction.type = 'refund';
+      } else {
+        transaction.type = 'one_time';
       }
 
-      // Build transaction with graceful fallbacks
-      const txn: StripeTransaction = {
-        id: String(row.id || row.invoice_id || ''),
-        customer_id: String(row.customer_id || ''),
-        customer_email: String(row.customer_email || ''),
-        amount: dollars(row.amount),
-        currency: (row.currency || 'usd').toString().toLowerCase(),
-        status: String(row.status || ''),
-        created: String(row.created || ''),
-        subscription_id: row.subscription_id ? String(row.subscription_id) : undefined,
-        invoice_id: row.invoice_id ? String(row.invoice_id) : undefined,
-        product_name: row.product_name ? String(row.product_name) : undefined,
-        plan_name: row.plan_name ? String(row.plan_name) : undefined,
-        interval: row.interval ? String(row.interval) : undefined,
-        type: 'one_time',
-      };
-
-      // Infer type if missing
-      const isRefund = (txn.status || '').toLowerCase().includes('refund') || txn.amount < 0;
-      const isSub = !!txn.subscription_id || !!txn.interval || (txn.product_name || '').toLowerCase().includes('subscription');
-      if (isRefund) txn.type = 'refund';
-      else if (isSub) txn.type = 'subscription';
-      else txn.type = (row.type && String(row.type)) || 'one_time' as any;
-
-      if (txn.id && txn.customer_id) out.push(txn);
-    }
-    return out;
+      return transaction as StripeTransaction;
+    }).filter(t => t.id && t.customer_id);
   }
-
 
   private buildCustomerProfiles(): void {
     this.customers.clear();
